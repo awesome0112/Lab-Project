@@ -446,6 +446,7 @@ public class ASTHelper
                 // update previous case
                 previousCaseNode = caseExpression;
 
+                // connect 2 case
                 caseExpression.setBeforeStatementNode(currentCaseNode);
                 currentCaseNode.setAfterStatementNode(caseExpression);
 
@@ -471,6 +472,9 @@ public class ASTHelper
                         // update current case
                         currentCaseNode = caseExpression;
                     }
+                } else {
+                    // if the statement is the last line of code in the switch-case then it will connect with endBlockNode
+                    caseExpression.setTrueNode(cfgEndBlockNode);
                 }
             }
         }
