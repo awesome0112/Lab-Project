@@ -35,7 +35,7 @@ public class AppStart {
         System.out.println("count = " + funcAstNodeList.size());
 
         for (ASTNode func : funcAstNodeList) {
-            if (((MethodDeclaration)func).getName().getIdentifier().equals("checkLeafYear"))
+            if (((MethodDeclaration)func).getName().getIdentifier().equals("checkNumber"))
             {
 //                System.out.println("func = " + ((MethodDeclaration)func).getName());
 //                System.out.println("parameters.size() = " + ((MethodDeclaration)func).parameters().size());

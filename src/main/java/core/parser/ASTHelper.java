@@ -194,7 +194,11 @@ public class ASTHelper
 
                     CfgNode currentNode = generateCFGForOneStatement(statement, beginStatementNode, endStatementNode);
 
-                    if (currentNode instanceof CfgBoolExprNode)
+                    if (currentNode instanceof CfgBeginSwitchNode)
+                    {
+                        beginStatementNode = ((CfgBeginSwitchNode)currentNode).getEndBlockNode();
+                    }
+                    else if (currentNode instanceof CfgBoolExprNode)
                     {
                         beginStatementNode = ((CfgBoolExprNode)currentNode).getEndBlockNode();
                     }
@@ -242,11 +246,22 @@ public class ASTHelper
     //câu lệnh mới vào afterNode hay falseNode của beforeNode
     //Hàm trả ra là Nút tương ứng với câu lệnh đầu tiên và một danh sách tương ứng với câu lệnh cuối cùng của
     // khối lệnh mà đứng trước nút End của khối
-    public static CfgNode generateCFGForOneStatement(ASTNode statement, CfgNode beforeNode,
-                                                     CfgNode afterNode)
+    public static CfgNode generateCFGForOneStatement(ASTNode statement, CfgNode beforeNode, CfgNode afterNode)
     {
         CfgNode currentNode;
-        if (statement instanceof IfStatement)
+
+        if(statement instanceof SwitchStatement) {
+            currentNode = new CfgSwitchStatementBlockNode();
+
+            currentNode.setAst(statement);
+
+            LinkCurrentNode(beforeNode, currentNode, afterNode);
+
+            CfgBeginSwitchNode beginSwitchNode = generateCFGFromSwitchASTNode((CfgSwitchStatementBlockNode) currentNode);
+
+            return beginSwitchNode;
+        }
+        else if (statement instanceof IfStatement)
         {
             currentNode = new CfgIfStatementBlockNode();
 
@@ -380,6 +395,86 @@ public class ASTHelper
             ((CfgEndBlockNode) afterNode).getBeforeEndBoolNodeList().add(currentNode);
         }
 
+    }
+
+    public static CfgBeginSwitchNode generateCFGFromSwitchASTNode(CfgSwitchStatementBlockNode switchCfgNode) {
+        // initialize
+        CfgNode beforeNode = switchCfgNode.getBeforeStatementNode();
+        CfgEndBlockNode cfgEndBlockNode = new CfgEndBlockNode();
+        CfgNode afterNode = switchCfgNode.getAfterStatementNode(); // outside switch block
+
+        // connect end of switch block with outside switch block
+        cfgEndBlockNode.setAfterStatementNode(afterNode);
+        afterNode.setBeforeStatementNode(cfgEndBlockNode);
+
+        // initialize the first node of switch CFG (beginSwitchNode)
+        CfgBeginSwitchNode beginSwitchNode = new CfgBeginSwitchNode();
+
+        // set content, AST, endBlockNode of beginSwitchNode
+        Expression switchExpression = ((SwitchStatement) switchCfgNode.getAst()).getExpression();
+        beginSwitchNode.setEndBlockNode(cfgEndBlockNode);
+        beginSwitchNode.setAst(switchExpression);
+        beginSwitchNode.setContent(switchExpression.toString());
+
+        // connect switch statement with node before switch block
+        beforeNode.setAfterStatementNode(beginSwitchNode);
+        beginSwitchNode.setBeforeStatementNode(beforeNode);
+
+        // get all statements in switch block iterate through them
+        List<ASTNode> caseStatements = ((SwitchStatement) switchCfgNode.getAst()).statements();
+
+        CfgNode currentCaseNode = beginSwitchNode;
+        CfgBoolExprNode previousCaseNode = null;
+
+        for(int i = 0; i < caseStatements.size(); i++) {
+            if(caseStatements.get(i) instanceof SwitchCase) {
+                // Case condition expression
+                CfgBoolExprNode caseExpression = new CfgBoolExprNode();
+                caseExpression.setAst(caseStatements.get(i));
+                caseExpression.setContent(caseStatements.get(i).toString());
+
+                if(previousCaseNode != null) {
+                    previousCaseNode.setFalseNode(caseExpression);
+                }
+
+                // Check if the expression is Default or not
+                // If the expression is Default then the falseNode is NULL
+                if(((SwitchCase) caseStatements.get(i)).isDefault()) {
+                    caseExpression.setFalseNode(null);
+                }
+
+                // update previous case
+                previousCaseNode = caseExpression;
+
+                caseExpression.setBeforeStatementNode(currentCaseNode);
+                currentCaseNode.setAfterStatementNode(caseExpression);
+
+                // block of code come with case condition expression
+                if(i + 1 < caseStatements.size()) {
+                    i++;
+                    // check if it is a block
+                    if (caseStatements.get(i) instanceof Block) {
+                        CfgNode caseBlock = new CfgBlock();
+                        caseBlock.setAst(caseStatements.get(i));
+                        caseBlock.setContent(caseStatements.get(i).toString());
+
+                        caseBlock.setBeforeStatementNode(caseExpression);
+                        caseBlock.setAfterStatementNode(cfgEndBlockNode);
+
+                        caseExpression.setTrueNode(generateCFGFromASTBlockNode(caseBlock));
+
+                        // update current case
+                        currentCaseNode = caseBlock;
+                    } else { // if it not a block then move to next case
+                        caseExpression.setTrueNode(null);
+
+                        // update current case
+                        currentCaseNode = caseExpression;
+                    }
+                }
+            }
+        }
+        return beginSwitchNode;
     }
 
     public static CfgBoolExprNode generateCFGFromIfASTNode(CfgIfStatementBlockNode ifCfgNode)
