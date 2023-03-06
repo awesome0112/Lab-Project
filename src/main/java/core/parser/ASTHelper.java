@@ -10,6 +10,7 @@ import org.eclipse.jdt.internal.compiler.ast.ForeachStatement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Stack;
 
 public class ASTHelper
 {
@@ -20,6 +21,7 @@ public class ASTHelper
             "Short", "String", "StringBuffer", "StringBuilder", "System", "Thread", "ThreadGroup",
             "Throwable", "Void");
 
+    private static Stack<CfgNode> endNodeStack = new Stack<>();// for break statements
 
     public static String getFullyQualifiedName(Type type, CompilationUnit cu)
     {
@@ -407,6 +409,9 @@ public class ASTHelper
         cfgEndBlockNode.setAfterStatementNode(afterNode);
         afterNode.setBeforeStatementNode(cfgEndBlockNode);
 
+        // add end node to keep track of latest endBlockNode
+        endNodeStack.push(cfgEndBlockNode);
+
         // initialize the first node of switch CFG (beginSwitchNode)
         CfgBeginSwitchNode beginSwitchNode = new CfgBeginSwitchNode();
 
@@ -423,61 +428,49 @@ public class ASTHelper
         // get all statements in switch block iterate through them
         List<ASTNode> caseStatements = ((SwitchStatement) switchCfgNode.getAst()).statements();
 
-        CfgNode currentCaseNode = beginSwitchNode;
+        CfgNode previousNode = beginSwitchNode;
         CfgBoolExprNode previousCaseNode = null;
 
-        for(int i = 0; i < caseStatements.size(); i++) {
-            if(caseStatements.get(i) instanceof SwitchCase) {
+        for (int i = 0; i < caseStatements.size(); i++) {
+
+            // Check if the statement is a case statement
+            if (caseStatements.get(i) instanceof SwitchCase) {
                 // Case condition expression
                 CfgBoolExprNode caseExpression = new CfgBoolExprNode();
                 caseExpression.setAst(caseStatements.get(i));
                 caseExpression.setContent(caseStatements.get(i).toString());
 
-                if(previousCaseNode != null) {
+                // if the previous statement is a break statement
+                if (previousNode instanceof CfgBreakStatementNode) {
+
+                    // then link the case statement with the previous case statement and set false node
+                    LinkCurrentNode(previousCaseNode, caseExpression, endNodeStack.peek());
                     previousCaseNode.setFalseNode(caseExpression);
+                } else { // if the previous statement is NOT a break statement
+
+                    // then just link the case statement with the previous node as normal (false node is null)
+                    LinkCurrentNode(previousNode, caseExpression, endNodeStack.peek());
                 }
 
-                // Check if the expression is Default or not
-                // If the expression is Default then the falseNode is NULL
-                if(((SwitchCase) caseStatements.get(i)).isDefault()) {
-                    caseExpression.setFalseNode(null);
-                }
-
-                // update previous case
+                // update
                 previousCaseNode = caseExpression;
+                previousNode = caseExpression;
+            } else {
 
-                // connect 2 case
-                caseExpression.setBeforeStatementNode(currentCaseNode);
-                currentCaseNode.setAfterStatementNode(caseExpression);
+                CfgNode tmpNode = generateCFGForOneStatement(caseStatements.get(i), previousNode, endNodeStack.peek());
 
-                // block of code come with case condition expression
-                if(i + 1 < caseStatements.size()) {
-                    i++;
-                    // check if it is a block
-                    if (caseStatements.get(i) instanceof Block) {
-                        CfgNode caseBlock = new CfgBlock();
-                        caseBlock.setAst(caseStatements.get(i));
-                        caseBlock.setContent(caseStatements.get(i).toString());
-
-                        caseBlock.setBeforeStatementNode(caseExpression);
-                        caseBlock.setAfterStatementNode(cfgEndBlockNode);
-
-                        caseExpression.setTrueNode(generateCFGFromASTBlockNode(caseBlock));
-
-                        // update current case
-                        currentCaseNode = caseBlock;
-                    } else { // if it not a block then move to next case
-                        caseExpression.setTrueNode(null);
-
-                        // update current case
-                        currentCaseNode = caseExpression;
-                    }
-                } else {
-                    // if the statement is the last line of code in the switch-case then it will connect with endBlockNode
-                    caseExpression.setTrueNode(cfgEndBlockNode);
+                // if previous node is a case statement then the current node is its true node
+                if (caseStatements.get(i - 1) instanceof SwitchCase) {
+                    ((CfgBoolExprNode) previousNode).setTrueNode(tmpNode);
                 }
+
+                // update
+                previousNode = tmpNode;
             }
         }
+
+        endNodeStack.pop();
+
         return beginSwitchNode;
     }
 

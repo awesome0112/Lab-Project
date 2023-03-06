@@ -253,21 +253,15 @@ public class CFG4J_Test
     public void checkNumber(int number) {
         switch (number) {
             case 1:
-            {
                 System.out.println("one");
-            }
-            case 2:
-            {
                 System.out.println("two");
-            }
+            case 2:
+                System.out.println("two");
+                break;
             case 3:
-            {
                 System.out.println("three");
-            }
             default:
-            {
                 System.out.println("not one or two or three");
-            }
         }
     }
 }
