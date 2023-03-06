@@ -1,4 +1,5 @@
 import core.cfg.CfgBlock;
+import core.cfg.CfgEndBlockNode;
 import core.cfg.CfgNode;
 import core.parser.ASTHelper;
 import core.parser.ProjectParser;
@@ -65,7 +66,7 @@ public class AppStart {
                 CfgNode cfgBeginCfgNode = new CfgNode();
                 cfgBeginCfgNode.setIsBeginCfgNode(true);
 
-                CfgNode cfgEndCfgNode = new CfgNode();
+                CfgEndBlockNode cfgEndCfgNode = new CfgEndBlockNode();
                 cfgEndCfgNode.setIsEndCfgNode(true);
 
                 CfgNode block = new CfgBlock();
